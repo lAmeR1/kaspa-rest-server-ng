@@ -1,4 +1,5 @@
 # encoding: utf-8
+import hashlib
 import re
 import time
 from enum import Enum
@@ -7,6 +8,7 @@ from typing import List
 from fastapi import Path, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text, func
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.future import select
 from starlette.responses import Response
 
@@ -40,7 +42,6 @@ class TransactionCount(BaseModel):
 
 
 class AddressName(BaseModel):
-    address: str
     name: str
 
 
@@ -256,8 +257,46 @@ async def get_name_for_address(
 
     response.headers["Cache-Control"] = "public, max-age=600"
     if r:
-        return AddressName(address=r.AddressKnown.address, name=r.AddressKnown.name)
+        return AddressName(name=r.AddressKnown.name)
     else:
         raise HTTPException(
             status_code=404, detail="Address name not found", headers={"Cache-Control": "public, max-age=600"}
         )
+
+
+@app.put(
+    "/addresses/{kaspaAddress}/name",
+    response_model=AddressName | None,
+    tags=["Kaspa addresses"],
+    openapi_extra={"strict_query_params": True},
+    status_code=201,
+)
+@sql_db_only
+async def set_name_for_address(
+    response: Response,
+    token: str,
+    address_name: AddressName,
+    kaspaAddress: str = Path(
+        description="Kaspa address as string e.g. "
+        "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e",
+        regex=REGEX_KASPA_ADDRESS,
+    ),
+):
+    """
+    Set the name for an address
+    """
+    if (
+        hashlib.sha256(token.encode("utf-8")).hexdigest()
+        != "dbd2d848f785f51efb525006b96fb40d11ba7bb42064bcc4d21f9b56e03cd8e4"
+    ):
+        raise HTTPException(status_code=403)
+
+    async with async_session() as s:
+        r = await s.execute(
+            insert(AddressKnown)
+            .values(address=kaspaAddress, name=address_name.name)
+            .on_conflict_do_update(index_elements=["address"], set_={"name": address_name.name})
+        )
+        await s.commit()
+
+        print(r)
