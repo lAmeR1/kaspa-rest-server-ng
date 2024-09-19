@@ -28,10 +28,10 @@ async def get_virtual_selected_parent_chain_from_block(startHash: str, includeAc
     some startHash to this kaspad's current virtual.
     """
     resp = await kaspad_client.request(
-        "getVirtualSelectedParentChainFromBlockRequest",
+        "getVirtualChainFromBlockRequest",
         params={"startHash": startHash, "includeAcceptedTransactionIds": includeAcceptedTransactionIds},
     )
-    resp = resp["getVirtualSelectedParentChainFromBlockResponse"]
+    resp = resp["getVirtualChainFromBlockResponse"]
 
     if resp.get("error"):
         raise HTTPException(400, detail=resp.get("error").get("message"))
