@@ -42,7 +42,7 @@ async def calculate_transaction_mass(tx: SubmitTxModel):
         )
     )
 
-    if len(txs) != len(previous_outpoints):
+    if len(txs) != len(set([x.transactionId for x in previous_outpoints])):
         raise HTTPException(status_code=404, detail="Previous outpoint(s) not found in database.")
 
     tx_input_amounts = [
