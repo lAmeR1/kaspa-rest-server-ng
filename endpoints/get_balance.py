@@ -29,6 +29,9 @@ async def get_balance_from_kaspa_address(
         else:
             raise
 
+    if resp.get("error"):
+        raise HTTPException(500, resp["error"])
+
     try:
         balance = int(resp["balance"])
 
