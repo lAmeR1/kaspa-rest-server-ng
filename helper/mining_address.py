@@ -76,6 +76,9 @@ def encodeAddress(prefix: str, payload: bytes, version: int):
 
 
 def toAddress(script):
+    if isinstance(script, str):
+        script = binascii.unhexlify(script)
+
     if script[0] == 0xAA and script[1] <= 0x76:
         return encodeAddress("kaspa", script[2 : (2 + script[1])], 0x08)
     if script[0] < 0x76:
