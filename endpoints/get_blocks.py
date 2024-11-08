@@ -9,7 +9,7 @@ from sqlalchemy import select, exists, func
 
 from dbsession import async_session
 from endpoints.get_virtual_chain_blue_score import current_blue_score_data
-from helper.mining_address import get_miner_payload_from_block, retrieve_miner_info_from_payload
+from helper.mining_address import get_miner_payload_from_block, retrieve_miner_info_from_payload, encodeAddress
 from models.Block import Block
 from models.BlockParent import BlockParent
 from models.BlockTransaction import BlockTransaction
@@ -299,7 +299,7 @@ async def get_transactions(blockId, transactionIds):
                         "scriptPublicKey": {"scriptPublicKey": tx_out.script_public_key},
                         "verboseData": {
                             "scriptPublicKeyType": tx_out.script_public_key_type,
-                            "scriptPublicKeyAddress": tx_out.script_public_key_address,
+                            "scriptPublicKeyAddress": encodeAddress(tx_out.script_public_key),
                         },
                     }
                     for tx_out in tx_outputs

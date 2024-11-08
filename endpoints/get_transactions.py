@@ -9,6 +9,7 @@ from sqlalchemy.future import select
 
 from dbsession import async_session
 from endpoints import filter_fields, sql_db_only
+from helper.mining_address import encodeAddress
 from models.Block import Block
 from models.BlockTransaction import BlockTransaction
 from models.Subnetwork import Subnetwork
@@ -160,7 +161,7 @@ async def get_transaction(
                             continue
 
                         tx_in.previous_outpoint_amount = tx_prev_outputs.amount
-                        tx_in.previous_outpoint_address = tx_prev_outputs.script_public_key_address
+                        tx_in.previous_outpoint_address = encodeAddress(tx_prev_outputs.script_public_key)
                         if resolve_previous_outpoints == "full":
                             tx_in.previous_outpoint_resolved = tx_prev_outputs
 
@@ -270,7 +271,7 @@ async def search_for_transactions(
                         continue
 
                     tx_in.previous_outpoint_amount = tx_prev_outputs.amount
-                    tx_in.previous_outpoint_address = tx_prev_outputs.script_public_key_address
+                    tx_in.previous_outpoint_address = encodeAddress(tx_prev_outputs.script_public_key)
                     if resolve_previous_outpoints == "full":
                         tx_in.previous_outpoint_resolved = tx_prev_outputs
 
