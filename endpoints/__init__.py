@@ -18,7 +18,7 @@ def sql_db_only(func):
     async def wrapper(*args, **kwargs):
         if not os.getenv("SQL_URI"):
             raise HTTPException(
-                status_code=503, detail="Endpoint not available. " "This endpoint needs a configured SQL database."
+                status_code=503, detail="Endpoint not available. This endpoint needs a configured SQL database."
             )
         return await func(*args, **kwargs)
 
@@ -30,7 +30,7 @@ def mainnet_only(func):
     async def wrapper(*args, **kwargs):
         if NETWORK_TYPE != "mainnet":
             raise HTTPException(
-                status_code=503, detail="Endpoint not available. " "This endpoint is only available in mainnet."
+                status_code=503, detail="Endpoint not available. This endpoint is only available in mainnet."
             )
         return await func(*args, **kwargs)
 

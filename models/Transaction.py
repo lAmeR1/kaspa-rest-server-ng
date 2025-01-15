@@ -12,6 +12,7 @@ class Transaction(Base):
     subnetwork_id = Column(SmallInteger)
     hash = Column(HexColumn)
     mass = Column(Integer)
+    payload = Column(HexColumn)
     block_time = Column(BigInteger)
 
 

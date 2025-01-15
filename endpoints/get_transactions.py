@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import List
 
-from fastapi import Path, HTTPException, Query, Response
+from fastapi import Path, HTTPException, Query
 from pydantic import BaseModel, parse_obj_as
 from sqlalchemy.future import select
 
@@ -14,7 +14,7 @@ from models.BlockTransaction import BlockTransaction
 from models.Subnetwork import Subnetwork
 from models.Transaction import Transaction, TransactionOutput, TransactionInput
 from models.TransactionAcceptance import TransactionAcceptance
-from server import app
+from server import app, kaspad_client
 
 DESC_RESOLVE_PARAM = (
     "Use this parameter if you want to fetch the TransactionInput previous outpoint details."
@@ -56,6 +56,7 @@ class TxModel(BaseModel):
     transaction_id: str | None
     hash: str | None
     mass: str | None
+    payload: str | None
     block_hash: List[str] | None
     block_time: int | None
     is_accepted: bool | None
@@ -86,8 +87,8 @@ class PreviousOutpointLookupMode(str, Enum):
 )
 @sql_db_only
 async def get_transaction(
-    response: Response,
     transactionId: str = Path(regex="[a-f0-9]{64}"),
+    blockHash: str = Query(None, description="Specify a containing block (if known) for faster lookup"),
     inputs: bool = True,
     outputs: bool = True,
     resolve_previous_outpoints: PreviousOutpointLookupMode = Query(
@@ -95,49 +96,77 @@ async def get_transaction(
     ),
 ):
     """
-    Get block information for a given block id
+    Get details for a given transaction id
     """
     async with async_session() as s:
-        tx = await s.execute(
-            select(
-                Transaction,
-                Subnetwork,
-                TransactionAcceptance.transaction_id.label("accepted_transaction_id"),
-                TransactionAcceptance.block_hash.label("accepting_block_hash"),
-                Block.blue_score,
-            )
-            .join(Subnetwork, Transaction.subnetwork_id == Subnetwork.id)
-            .join(
-                TransactionAcceptance, Transaction.transaction_id == TransactionAcceptance.transaction_id, isouter=True
-            )
-            .join(Block, TransactionAcceptance.block_hash == Block.hash, isouter=True)
-            .filter(Transaction.transaction_id == transactionId)
-        )
+        block_hashes = None
+        transaction = None
+        if blockHash:
+            block_hashes = [blockHash]
+            transaction = await get_transaction_from_kaspad([blockHash], transactionId, inputs, outputs)
 
-        tx = tx.first()
-
-        tx_outputs = None
-        tx_inputs = None
-
-        block_hashes = (
-            (
-                await s.execute(
-                    select(BlockTransaction.block_hash).filter(BlockTransaction.transaction_id == transactionId)
+        if not transaction:
+            block_hashes = (
+                (
+                    await s.execute(
+                        select(BlockTransaction.block_hash).filter(BlockTransaction.transaction_id == transactionId)
+                    )
                 )
+                .scalars()
+                .all()
             )
-            .scalars()
-            .all()
-        )
+            if block_hashes:
+                transaction = await get_transaction_from_kaspad(block_hashes, transactionId, inputs, outputs)
 
-        if outputs:
-            tx_outputs = await s.execute(
-                select(TransactionOutput).filter(TransactionOutput.transaction_id == transactionId)
+        if not transaction:
+            tx = await s.execute(
+                select(Transaction, Subnetwork)
+                .join(Subnetwork, Transaction.subnetwork_id == Subnetwork.id)
+                .filter(Transaction.transaction_id == transactionId)
             )
+            tx = tx.first()
 
-            tx_outputs = tx_outputs.scalars().all()
+            if tx:
+                transaction = {
+                    "subnetwork_id": tx.Subnetwork.subnetwork_id,
+                    "transaction_id": tx.Transaction.transaction_id,
+                    "hash": tx.Transaction.hash,
+                    "mass": tx.Transaction.mass,
+                    "payload": tx.Transaction.payload,
+                    "block_hash": block_hashes,
+                    "block_time": tx.Transaction.block_time,
+                }
 
-        if inputs:
-            if resolve_previous_outpoints in ["light", "full"]:
+                if inputs and resolve_previous_outpoints not in ["light", "full"]:
+                    tx_inputs = await s.execute(
+                        select(TransactionInput).filter(TransactionInput.transaction_id == transactionId)
+                    )
+                    tx_inputs = tx_inputs.scalars().all()
+                    transaction["inputs"] = (
+                        parse_obj_as(List[TxInput], sorted(tx_inputs, key=lambda x: x.index)) if tx_inputs else None
+                    )
+
+                if outputs:
+                    tx_outputs = await s.execute(
+                        select(TransactionOutput).filter(TransactionOutput.transaction_id == transactionId)
+                    )
+                    tx_outputs = tx_outputs.scalars().all()
+                    transaction["outputs"] = (
+                        parse_obj_as(List[TxOutput], sorted(tx_outputs, key=lambda x: x.index)) if tx_outputs else None
+                    )
+
+        if transaction:
+            acceptance = await s.execute(
+                select(TransactionAcceptance.transaction_id, TransactionAcceptance.block_hash, Block.blue_score)
+                .join(Block, TransactionAcceptance.block_hash == Block.hash, isouter=True)
+                .filter(TransactionAcceptance.transaction_id == transactionId)
+            )
+            acceptance = acceptance.first()
+            transaction["is_accepted"] = True if acceptance else False
+            transaction["accepting_block_hash"] = acceptance.block_hash if acceptance else None
+            transaction["accepting_block_blue_score"] = acceptance.blue_score if acceptance else None
+
+            if inputs and resolve_previous_outpoints in ["light", "full"]:
                 tx_inputs = await s.execute(
                     select(TransactionInput, TransactionOutput)
                     .outerjoin(
@@ -147,47 +176,22 @@ async def get_transaction(
                     )
                     .filter(TransactionInput.transaction_id == transactionId)
                 )
-
                 tx_inputs = tx_inputs.all()
 
-                if resolve_previous_outpoints in ["light", "full"]:
-                    for tx_in, tx_prev_outputs in tx_inputs:
-                        # it is possible, that the old tx is not in database. Leave fields empty
-                        if not tx_prev_outputs:
-                            tx_in.previous_outpoint_amount = None
-                            tx_in.previous_outpoint_address = None
-                            if resolve_previous_outpoints == "full":
-                                tx_in.previous_outpoint_resolved = None
-                            continue
-
-                        tx_in.previous_outpoint_amount = tx_prev_outputs.amount
-                        tx_in.previous_outpoint_address = tx_prev_outputs.script_public_key_address
+                for tx_in, tx_prev_output in tx_inputs:
+                    if tx_prev_output:
+                        tx_in.previous_outpoint_amount = tx_prev_output.amount
+                        tx_in.previous_outpoint_address = tx_prev_output.script_public_key_address
                         if resolve_previous_outpoints == "full":
-                            tx_in.previous_outpoint_resolved = tx_prev_outputs
+                            tx_in.previous_outpoint_resolved = tx_prev_output
 
-                # remove unneeded list
                 tx_inputs = [x[0] for x in tx_inputs]
-
-            else:
-                tx_inputs = await s.execute(
-                    select(TransactionInput).filter(TransactionInput.transaction_id == transactionId)
+                transaction["inputs"] = (
+                    parse_obj_as(List[TxInput], sorted(tx_inputs, key=lambda x: x.index)) if tx_inputs else None
                 )
-                tx_inputs = tx_inputs.scalars().all()
 
-    if tx:
-        return {
-            "subnetwork_id": tx.Subnetwork.subnetwork_id,
-            "transaction_id": tx.Transaction.transaction_id,
-            "hash": tx.Transaction.hash,
-            "mass": tx.Transaction.mass,
-            "block_hash": block_hashes,
-            "block_time": tx.Transaction.block_time,
-            "is_accepted": True if tx.accepted_transaction_id else False,
-            "accepting_block_hash": tx.accepting_block_hash,
-            "accepting_block_blue_score": tx.blue_score,
-            "outputs": parse_obj_as(List[TxOutput], sorted(tx_outputs, key=lambda x: x.index)) if tx_outputs else None,
-            "inputs": parse_obj_as(List[TxInput], sorted(tx_inputs, key=lambda x: x.index)) if tx_inputs else None,
-        }
+    if transaction:
+        return transaction
     else:
         raise HTTPException(
             status_code=404, detail="Transaction not found", headers={"Cache-Control": "public, max-age=3"}
@@ -297,6 +301,7 @@ async def search_for_transactions(
                 "transaction_id": tx.Transaction.transaction_id,
                 "hash": tx.Transaction.hash,
                 "mass": tx.Transaction.mass,
+                "payload": tx.Transaction.payload,
                 "block_hash": [x.block_hash for x in tx_blocks if x.transaction_id == tx.Transaction.transaction_id],
                 "block_time": tx.Transaction.block_time,
                 "is_accepted": True if tx.accepted_transaction_id else False,
@@ -325,3 +330,47 @@ async def search_for_transactions(
         )
         for tx in tx_list
     )
+
+
+async def get_transaction_from_kaspad(block_hashes, transactionId, includeInputs, includeOutputs):
+    resp = await kaspad_client.request("getBlockRequest", params={"hash": block_hashes[0], "includeTransactions": True})
+    if "block" in resp["getBlockResponse"] and "transactions" in resp["getBlockResponse"]["block"]:
+        for tx in resp["getBlockResponse"]["block"]["transactions"]:
+            if tx["verboseData"]["transactionId"] == transactionId:
+                return {
+                    "subnetwork_id": tx["subnetworkId"],
+                    "transaction_id": tx["verboseData"]["transactionId"],
+                    "hash": tx["verboseData"]["hash"],
+                    "mass": tx["verboseData"]["computeMass"]
+                    if tx["verboseData"].get("computeMass", "0") != "0"
+                    else None,
+                    "payload": tx["payload"] if tx["payload"] else None,
+                    "block_hash": block_hashes,
+                    "block_time": tx["verboseData"]["blockTime"],
+                    "inputs": [
+                        {
+                            "transaction_id": tx["verboseData"]["transactionId"],
+                            "index": tx_in_idx,
+                            "previous_outpoint_hash": tx_in["previousOutpoint"]["transactionId"],
+                            "previous_outpoint_index": tx_in["previousOutpoint"]["index"],
+                            "signature_script": tx_in["signatureScript"],
+                            "sig_op_count": tx_in["sigOpCount"],
+                        }
+                        for tx_in_idx, tx_in in enumerate(tx["inputs"])
+                    ]
+                    if includeInputs and tx["inputs"]
+                    else None,
+                    "outputs": [
+                        {
+                            "transaction_id": tx["verboseData"]["transactionId"],
+                            "index": tx_out_idx,
+                            "amount": tx_out["amount"],
+                            "script_public_key": tx_out["scriptPublicKey"]["scriptPublicKey"],
+                            "script_public_key_address": tx_out["verboseData"]["scriptPublicKeyAddress"],
+                            "script_public_key_type": tx_out["verboseData"]["scriptPublicKeyType"],
+                        }
+                        for tx_out_idx, tx_out in enumerate(tx["outputs"])
+                    ]
+                    if includeOutputs and tx["outputs"]
+                    else None,
+                }
