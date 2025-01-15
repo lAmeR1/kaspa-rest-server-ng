@@ -19,7 +19,7 @@ from server import app
 
 DESC_RESOLVE_PARAM = (
     "Use this parameter if you want to fetch the TransactionInput previous outpoint details."
-    " Light fetches only the address and amount. Full fetches the whole TransactionOutput and "
+    " Light fetches only the adress and amount. Full fetches the whole TransactionOutput and "
     "adds it into each TxInput."
 )
 
