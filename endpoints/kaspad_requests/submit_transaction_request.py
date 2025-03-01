@@ -67,10 +67,12 @@ async def submit_a_new_transaction(
     if replaceByFee:
         # Replace by fee doesn't have the allowOrphan attribute
         body = SubmitTransactionReplacementRequest(transaction=body.transaction)
-        tx_resp = await kaspad_client[0].submit_transaction_replacement(**body.dict())
+        tx_resp = await kaspad_client[0].submit_transaction_replacement(transaction=body.dict()["transaction"])
         tx_resp = tx_resp["submitTransactionReplacementResponse"]
     else:
-        tx_resp = await kaspad_client[0].submit_transaction(**body.dict())
+        tx_resp = await kaspad_client[0].submit_transaction(
+            transaction=body.dict()["transaction"], allow_orphan=body.dict()["allowOrphan"]
+        )
         tx_resp = tx_resp["submitTransactionResponse"]
 
     if "error" in tx_resp:
