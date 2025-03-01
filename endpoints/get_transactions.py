@@ -417,7 +417,7 @@ async def search_for_transactions(
 
 
 async def get_transaction_from_kaspad(block_hashes, transactionId, includeInputs, includeOutputs):
-    resp = await kaspad_client.request("getBlockRequest", params={"hash": block_hashes[0], "includeTransactions": True})
+    resp = await kaspad_client[0].get_block(block_hashes[0], True)
     if "block" in resp["getBlockResponse"] and "transactions" in resp["getBlockResponse"]["block"]:
         for tx in resp["getBlockResponse"]["block"]["transactions"]:
             if tx["verboseData"]["transactionId"] == transactionId:
@@ -462,5 +462,5 @@ async def get_transaction_from_kaspad(block_hashes, transactionId, includeInputs
 
 async def get_block_from_kaspad(block_hash):
     if block_hash:
-        resp = await kaspad_client.request("getBlockRequest", params={"hash": block_hash, "includeTransactions": False})
+        resp = await kaspad_client[0].get_block(block_hash, False)
         return resp.get("getBlockResponse", {}).get("block")

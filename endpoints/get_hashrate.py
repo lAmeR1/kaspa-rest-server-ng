@@ -40,7 +40,7 @@ async def get_hashrate(stringOnly: bool = False):
     Returns the current hashrate for Kaspa network in TH/s.
     """
 
-    resp = await kaspad_client.request("getBlockDagInfoRequest")
+    resp = await kaspad_client[0].get_block_dag_info()
     hashrate = resp["getBlockDagInfoResponse"]["difficulty"] * 2
     hashrate_in_th = hashrate / 1_000_000_000_000
 
@@ -91,9 +91,9 @@ async def get_max_hashrate():
             await KeyValueStore.set("maxhash_last_value", json.dumps(response))
             return response
     else:
-        resp = await kaspad_client.request("getBlockDagInfoRequest")
+        resp = await kaspad_client[0].get_block_dag_info()
         block_hash = resp["getBlockDagInfoResponse"]["virtualParentHashes"][0]
-        resp = await kaspad_client.request("getBlockRequest", params={"hash": block_hash, "includeTransactions": False})
+        resp = await kaspad_client[0].get_block(block_hash, False)
         block = resp.get("getBlockResponse", {}).get("block", {})
         block_difficulty = int(block.get("verboseData", {}).get("difficulty", 0))
         hashrate_new = block_difficulty * 2 * BPS

@@ -57,18 +57,17 @@ async def health_state():
     except Exception:
         db_check_status = DBCheckStatus(isSynced=False)
 
-    await kaspad_client.initialize_all()
+    info = await kaspad_client[0].get_info()
 
     kaspads = [
         {
-            "kaspadHost": f"KASPAD_HOST_{i + 1}",
-            "serverVersion": kaspad.server_version,
-            "isUtxoIndexed": kaspad.is_utxo_indexed,
-            "isSynced": kaspad.is_synced,
-            "p2pId": hashlib.sha256(kaspad.p2p_id.encode()).hexdigest(),
+            "kaspadHost": "KASPAD_HOST_1",
+            "serverVersion": info["getInfoResponse"]["serverVersion"],
+            "isUtxoIndexed": info["getInfoResponse"]["isUtxoIndexed"],
+            "isSynced": info["getInfoResponse"]["isSynced"],
+            "p2pId": hashlib.sha256(info["getInfoResponse"]["p2pId"].encode()).hexdigest(),
             "blueScore": current_blue_score_node,
         }
-        for i, kaspad in enumerate(kaspad_client.kaspads)
     ]
     result = {
         "kaspadServers": kaspads,

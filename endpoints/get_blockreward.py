@@ -15,7 +15,7 @@ async def get_blockreward(stringOnly: bool = False):
     """
     Returns the current blockreward in KAS/block
     """
-    resp = await kaspad_client.request("getBlockDagInfoRequest")
+    resp = await kaspad_client[0].get_block_dag_info()
     daa_score = int(resp["getBlockDagInfoResponse"]["virtualDaaScore"])
 
     reward = 0

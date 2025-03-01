@@ -4,17 +4,15 @@ import time
 from enum import Enum
 from typing import List
 
-from kaspa_script_address import to_script
-
-from constants import DISABLE_LIMITS, USE_SCRIPT_FOR_ADDRESS
-
 from fastapi import Path, Query, HTTPException
+from kaspa_script_address import to_script
 from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.future import select
 from starlette.responses import Response
 
 from constants import ADDRESS_EXAMPLE, REGEX_KASPA_ADDRESS
+from constants import DISABLE_LIMITS, USE_SCRIPT_FOR_ADDRESS
 from dbsession import async_session
 from endpoints import sql_db_only
 from endpoints.get_transactions import search_for_transactions, TxSearch, TxModel

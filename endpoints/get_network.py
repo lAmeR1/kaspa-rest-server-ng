@@ -29,5 +29,5 @@ async def get_network():
     """
     Get some global kaspa network information
     """
-    resp = await kaspad_client.request("getBlockDagInfoRequest")
+    resp = await kaspad_client[0].get_block_dag_info()
     return resp["getBlockDagInfoResponse"]

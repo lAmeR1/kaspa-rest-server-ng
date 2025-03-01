@@ -16,7 +16,7 @@ async def get_coinsupply():
     """
     Get $KAS coin supply information
     """
-    resp = await kaspad_client.request("getCoinSupplyRequest")
+    resp = await kaspad_client[0].get_coin_supply()
     return {
         "circulatingSupply": resp["getCoinSupplyResponse"]["circulatingSompi"],
         "totalSupply": resp["getCoinSupplyResponse"]["circulatingSompi"],
@@ -29,7 +29,7 @@ async def get_circulating_coins(in_billion: bool = False):
     """
     Get circulating amount of $KAS token as numerical value
     """
-    resp = await kaspad_client.request("getCoinSupplyRequest")
+    resp = await kaspad_client[0].get_coin_supply()
     coins = str(float(resp["getCoinSupplyResponse"]["circulatingSompi"]) / 100000000)
     if in_billion:
         return str(round(float(coins) / 1000000000, 2))
@@ -42,5 +42,5 @@ async def get_total_coins():
     """
     Get total amount of $KAS token as numerical value
     """
-    resp = await kaspad_client.request("getCoinSupplyRequest")
+    resp = await kaspad_client[0].get_coin_supply()
     return str(float(resp["getCoinSupplyResponse"]["circulatingSompi"]) / 100000000)

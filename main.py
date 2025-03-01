@@ -2,6 +2,7 @@
 import logging
 import os
 
+from kaspad_client import KaspadClient
 from starlette.responses import RedirectResponse
 
 from endpoints import (
@@ -51,15 +52,17 @@ if os.getenv("VSPC_REQUEST") == "true":
 
 @app.on_event("startup")
 async def startup():
-    # We don't want to mess with the new filler's views!
-    # create db if needed
-    # if False and IS_SQL_DB_CONFIGURED:
-    #     await create_all(drop=False)
     # get kaspad
     await get_kas_market_data()
 
+    if isinstance(kaspad_client[0], str):
+        kaspad_url = kaspad_client.pop()
+        kaspad_host = kaspad_url.split(":")[0]
+        kaspad_port = int(kaspad_url.split(":")[1])
+        kaspad_client.append(KaspadClient(kaspad_host, kaspad_port))
+
     # find kaspad before staring webserver
-    await kaspad_client.initialize_all()
+    print(await kaspad_client[0].get_block_dag_info())
 
 
 @app.get("/", include_in_schema=False)

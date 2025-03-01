@@ -8,14 +8,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi_utils.tasks import repeat_every
+from kaspad_client import KaspadClient
 from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from dbsession import async_session
-from helper.StrictRoute import StrictRoute
 from helper.LimitUploadSize import LimitUploadSize
-from kaspad.KaspadMultiClient import KaspadMultiClient
+from helper.StrictRoute import StrictRoute
 
 fastapi.logger.logger.setLevel(logging.WARNING)
 
@@ -69,7 +69,7 @@ async def ping_server():
 
     error = False
     try:
-        info = await kaspad_client.kaspads[0].request("getInfoRequest")
+        info = await kaspad_client[0].get_info()
         result.kaspad.is_online = True
         result.kaspad.server_version = info["getInfoResponse"]["serverVersion"]
         result.kaspad.is_utxo_indexed = info["getInfoResponse"]["isUtxoIndexed"]
@@ -93,23 +93,19 @@ async def ping_server():
     return result
 
 
-kaspad_hosts = []
+if not os.environ.get("KASPAD_HOST_1"):
+    raise Exception("Please set KASPAD_HOST_1 environment variable.")
 
-for i in range(100):
-    try:
-        kaspad_hosts.append(os.environ[f"KASPAD_HOST_{i + 1}"].strip())
-    except KeyError:
-        break
+try:
+    kaspad_client = KaspadClient("", 0)
+except RuntimeError:
+    pass
 
-if not kaspad_hosts:
-    raise Exception("Please set at least KASPAD_HOST_1 environment variable.")
-
-kaspad_client = KaspadMultiClient(kaspad_hosts)
+kaspad_client = [os.environ.get("KASPAD_HOST_1")]  # type: list[KaspadClient]
 
 
 @app.exception_handler(Exception)
 async def unicorn_exception_handler(request: Request, exc: Exception):
-    await kaspad_client.initialize_all()
     return JSONResponse(
         status_code=500,
         content={
@@ -122,4 +118,4 @@ async def unicorn_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 @repeat_every(seconds=60)
 async def periodical_blockdag():
-    await kaspad_client.initialize_all()
+    await kaspad_client.get_block_dag_info()

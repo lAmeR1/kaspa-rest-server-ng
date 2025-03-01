@@ -22,7 +22,7 @@ async def get_balances_from_kaspa_addresses(body: BalanceRequest):
     """
     Get balance for a given kaspa address
     """
-    resp = await kaspad_client.request("getBalancesByAddressesRequest", params={"addresses": body.addresses})
+    resp = await kaspad_client[0].get_balances_by_addresses(body.addresses)
 
     try:
         resp = resp["getBalancesByAddressesResponse"]

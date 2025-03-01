@@ -19,7 +19,7 @@ async def get_kaspad_info():
     """
     Get some information for kaspad instance, which is currently connected.
     """
-    resp = await kaspad_client.request("getInfoRequest")
+    resp = await kaspad_client[0].get_info()
     p2p_id = resp["getInfoResponse"].pop("p2pId")
     resp["getInfoResponse"]["p2pIdHashed"] = hashlib.sha256(p2p_id.encode()).hexdigest()
     return resp["getInfoResponse"]

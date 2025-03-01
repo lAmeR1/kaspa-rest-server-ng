@@ -44,7 +44,7 @@ async def get_utxos_for_address(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid address: {kaspaAddress}")
 
-    resp = await kaspad_client.request("getUtxosByAddressesRequest", params={"addresses": [kaspaAddress]}, timeout=120)
+    resp = await kaspad_client[0].get_utxos_by_addresses([kaspaAddress])
     try:
         if "getUtxosByAddressesResponse" in resp and "error" in resp["getUtxosByAddressesResponse"]:
             raise HTTPException(status_code=400, detail=resp["getUtxosByAddressesResponse"]["error"])
@@ -74,7 +74,7 @@ async def get_utxos_for_addresses(body: UtxoRequest):
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid address: {kaspaAddress}")
 
-    resp = await kaspad_client.request("getUtxosByAddressesRequest", params={"addresses": body.addresses}, timeout=120)
+    resp = await kaspad_client[0].get_utxos_by_addresses(body.addresses)
     try:
         if "getUtxosByAddressesResponse" in resp and "error" in resp["getUtxosByAddressesResponse"]:
             raise HTTPException(status_code=400, detail=resp["getUtxosByAddressesResponse"]["error"])

@@ -89,7 +89,7 @@ async def get_block(
     """
     Get block information for a given block id
     """
-    resp = await kaspad_client.request("getBlockRequest", params={"hash": blockId, "includeTransactions": True})
+    resp = await kaspad_client[0].get_block(blockId, True)
     block = None
     if not resp.get("getBlockResponse", {}).get("block", {}).get("verboseData", {}).get("isHeaderOnly", True):
         logging.debug(f"Found block {blockId} in kaspad")
@@ -142,10 +142,7 @@ async def get_blocks(
     """
     response.headers["Cache-Control"] = "public, max-age=3"
 
-    resp = await kaspad_client.request(
-        "getBlocksRequest",
-        params={"lowHash": lowHash, "includeBlocks": includeBlocks, "includeTransactions": includeTransactions},
-    )
+    resp = await kaspad_client[0].get_blocks(lowHash, includeBlocks, includeTransactions)
     return resp["getBlocksResponse"]
 
 
@@ -201,7 +198,7 @@ async def get_block_from_db(block_id, include_transactions):
 
 async def get_block_color_from_kaspad(block):
     blockId = block["verboseData"]["hash"]
-    resp = await kaspad_client.request("getCurrentBlockColorRequest", params={"hash": blockId})
+    resp = await kaspad_client[0].get_block_color(blockId)
     if "blue" in resp["getCurrentBlockColorResponse"]:
         return "blue" if resp["getCurrentBlockColorResponse"]["blue"] is True else "red"
     else:

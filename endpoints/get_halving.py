@@ -20,7 +20,7 @@ async def get_halving(field: str | None = None):
     """
     Returns information about chromatic halving
     """
-    resp = await kaspad_client.request("getBlockDagInfoRequest")
+    resp = await kaspad_client[0].get_block_dag_info()
     daa_score = int(resp["getBlockDagInfoResponse"]["virtualDaaScore"])
 
     future_reward = 0
