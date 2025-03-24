@@ -34,6 +34,10 @@ async def calculate_transaction_mass(tx: SubmitTxModel):
 
     Note: Be aware that if the transaction has a very low output amount or a high number of outputs, the mass can become significantly large.
     """
+    # check mining tx
+    if tx.subnetworkId == "0100000000000000000000000000000000000000":
+        return TxMass(mass=0, storage_mass=0, compute_mass=0)
+
     previous_outpoints = [input.previousOutpoint for input in tx.inputs]
 
     txs = list(
