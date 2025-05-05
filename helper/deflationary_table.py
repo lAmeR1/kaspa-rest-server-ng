@@ -450,7 +450,7 @@ def daa_from_month(month: int):
 def calc_block_reward(daa):
     month = subsidy_month(daa)
     return {
-        "current": math.ceil(SUBSIDY_BY_MONTH_TABLE[month] / BPS),
-        "next": math.ceil(SUBSIDY_BY_MONTH_TABLE[month + 1] / BPS),
+        "current": math.ceil(SUBSIDY_BY_MONTH_TABLE[month] / BPS) / 1_0000_0000,
+        "next": math.ceil(SUBSIDY_BY_MONTH_TABLE[month + 1] / BPS) / 1_0000_0000,
         "daa_next_halving": daa_from_month(month + 1),
     }
