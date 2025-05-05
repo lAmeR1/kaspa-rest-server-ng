@@ -9,7 +9,7 @@ TX_SEARCH_BS_LIMIT = int(os.getenv("TX_SEARCH_BS_LIMIT", "100"))
 HEALTH_TOLERANCE_DOWN = int(os.getenv("HEALTH_TOLERANCE_DOWN", "300"))
 
 NETWORK_TYPE = os.getenv("NETWORK_TYPE", "mainnet").lower()
-BPS = int(os.getenv("BPS", "1"))
+BPS = int(os.getenv("BPS", "10"))
 
 match NETWORK_TYPE:
     case "mainnet":

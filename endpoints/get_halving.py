@@ -1,11 +1,11 @@
 # encoding: utf-8
-import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel
 from starlette.responses import PlainTextResponse
 
-from helper.deflationary_table import DEFLATIONARY_TABLE
+from constants import BPS
+from helper.deflationary_table import calc_block_reward
 from server import app, kaspad_client
 
 
@@ -23,18 +23,11 @@ async def get_halving(field: str | None = None):
     resp = await kaspad_client.request("getBlockDagInfoRequest")
     daa_score = int(resp["getBlockDagInfoResponse"]["virtualDaaScore"])
 
-    future_reward = 0
-    daa_breakpoint = 0
+    reward_info = calc_block_reward(daa_score)
 
-    daa_list = sorted(DEFLATIONARY_TABLE)
-
-    for i, to_break_score in enumerate(daa_list):
-        if daa_score < to_break_score:
-            future_reward = DEFLATIONARY_TABLE[daa_list[i + 1]]
-            daa_breakpoint = to_break_score
-            break
-
-    next_halving_timestamp = int(time.time() + (daa_breakpoint - daa_score))
+    next_halving_timestamp = datetime.now(timezone.utc).timestamp() + int(
+        (reward_info["daa_next_halving"] - daa_score) / BPS
+    )
 
     if field == "nextHalvingTimestamp":
         return PlainTextResponse(content=str(next_halving_timestamp))
@@ -45,11 +38,11 @@ async def get_halving(field: str | None = None):
         )
 
     elif field == "nextHalvingAmount":
-        return PlainTextResponse(content=str(future_reward))
+        return PlainTextResponse(content=str(reward_info["next"]))
 
     else:
         return {
             "nextHalvingTimestamp": next_halving_timestamp,
             "nextHalvingDate": datetime.utcfromtimestamp(next_halving_timestamp).strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "nextHalvingAmount": future_reward,
+            "nextHalvingAmount": str(reward_info["next"]),
         }
